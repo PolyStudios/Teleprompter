@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>Text na černou</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+<style>
+/* VOICE: tichý pracovní nástroj, ovladatelný prstem na iPadu
+   IDEA: čtecí zařízení (teleprompter) – černá plocha, bílý text, čtecí linka
+   PICTURE: samotný text na černé, ovládání dole jako u přehrávače
+   COLOUR and TYPE: čistě #000 / #fff, ovládání v šedé; Inter
+   LAYOUT: editor s lištou nahoře; čtečka na celou plochu s ovládáním dole */
+:root{color-scheme:dark;--bar:#141414;--line:#2c2c2c;--mute:#9a9a9a;--ink:#f2f2f2}
+*{box-sizing:border-box;min-width:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{margin:0;background:#000;color:var(--ink);font:15px/1.4 Inter,system-ui,sans-serif;display:flex;flex-direction:column;overflow-x:clip;touch-action:manipulation}
+button{font:inherit;cursor:pointer;touch-action:manipulation}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.bar{background:var(--bar);border-bottom:1px solid var(--line);padding:10px max(2vw,12px);display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center;position:sticky;top:0;z-index:2}
+.grp{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.lbl{color:var(--mute);font-size:13px;white-space:nowrap}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{background:transparent;color:var(--mute);border:0;border-right:1px solid var(--line);font-size:14px;min-width:44px;height:44px;padding:0 12px}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:#fff;color:#000}
+input[type=range]{width:130px;accent-color:#fff;height:44px}
+.val{font-variant-numeric:tabular-nums;font-size:13px;width:3.8em;text-align:right;white-space:nowrap}
+select{background:#000;color:var(--ink);border:1px solid var(--line);border-radius:10px;height:44px;font:inherit;font-size:16px;padding:0 8px}
+.btn{background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:10px;height:44px;padding:0 14px;font-size:14px;white-space:nowrap;display:inline-flex;align-items:center;gap:8px}
+.btn[aria-pressed=true]{background:#fff;color:#000;border-color:#fff}
+.btn svg{width:20px;height:20px;flex:none}
+.act{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+main{flex:1;display:flex;background:#000}
+#stage{flex:1;background:#000;color:#fff;font-family:Inter,system-ui,sans-serif;font-optical-sizing:auto;padding:clamp(24px,5vw,80px);padding-bottom:120px;outline:none;white-space:pre-wrap;overflow-wrap:anywhere;min-height:60vh;caret-color:#fff}
+#stage:empty::before{content:attr(data-ph);color:#555;text-transform:none;letter-spacing:0;font-weight:400;font-style:normal;font-size:clamp(18px,3vw,28px)}
+#stage::selection{background:#fff;color:#000}
+#go{position:fixed;right:max(3vw,16px);bottom:max(3vw,16px);z-index:3;background:#fff;color:#000;border:0;border-radius:999px;height:64px;padding:0 28px 0 22px;font-size:18px;font-weight:700;display:flex;align-items:center;gap:10px;box-shadow:0 6px 30px rgba(0,0,0,.6)}
+#go svg{width:26px;height:26px}
+
+/* čtečka */
+#pr{position:fixed;inset:0;background:#000;overflow:hidden;z-index:10}
+#pr[hidden]{display:none}
+#rot{position:absolute;transform-origin:50% 50%;overflow:hidden}
+#mir{position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:grab}
+#txt{position:absolute;left:0;right:0;top:0;padding-inline:7%;color:#fff;font-family:Inter,system-ui,sans-serif;font-optical-sizing:auto;white-space:pre-wrap;overflow-wrap:anywhere;will-change:transform;user-select:none;-webkit-user-select:none}
+#txt p{margin:0 0 .45em}
+#mark{position:absolute;left:0;right:0;height:0;pointer-events:none}
+#mark::before,#mark::after{content:"";position:absolute;top:-14px;border:14px solid transparent}
+#mark::before{left:0;border-left:18px solid #e8e8e8}
+#mark::after{right:0;border-right:18px solid #e8e8e8}
+#mark[hidden]{display:none}
+#prog{position:absolute;left:0;top:0;height:3px;background:#fff;opacity:.55;pointer-events:none}
+#ctl{position:absolute;left:0;right:0;bottom:0;background:rgba(18,18,18,.94);border-top:1px solid var(--line);padding:12px 16px 14px;display:flex;flex-direction:column;gap:10px;transition:opacity .25s}
+#ctl.hide{opacity:0;pointer-events:none}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center}
+.big{height:60px;min-width:60px;border-radius:14px;font-size:16px;padding:0 18px}
+.big svg{width:26px;height:26px}
+#play{background:#fff;color:#000;border-color:#fff;font-weight:700;min-width:150px;justify-content:center}
+#mirH{border:2px solid #fff;font-weight:700}
+#mirH[aria-pressed=true]{background:#fff;color:#000}
+.spd{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:14px;padding:0 6px;height:60px}
+.spd button{background:transparent;border:0;color:#fff;width:48px;height:48px;font-size:26px;border-radius:10px}
+.spd input{width:140px}
+.spd .val{width:auto;min-width:4.6em;text-align:center;font-size:14px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#fff;color:#000;padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}
+.toast.on{opacity:1}
+@media(max-width:700px){.act{margin-left:0}.spd input{width:90px}#play{min-width:120px}}
+@media(prefers-reduced-motion:reduce){.toast,#ctl{transition:none}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z" fill="currentColor"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M6 4h4.5v16H6zM13.5 4H18v16h-4.5z" fill="currentColor"/></symbol>
+  <symbol id="i-start" viewBox="0 0 24 24"><path d="M5 4h2.5v16H5zM20 4.5v15L9 12z" fill="currentColor"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 4l7 8h-4.5v8h-5v-8H5z" fill="currentColor"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 20l-7-8h4.5V4h5v8H19z" fill="currentColor"/></symbol>
+  <symbol id="i-mir" viewBox="0 0 24 24"><path d="M11 2h2v20h-2zM9 6v12L2 18zM15 6v12l7 0z" fill="currentColor"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 17.5V20h2.5L17 9.5 14.5 7zM19.7 6.8a1 1 0 000-1.4l-1.1-1.1a1 1 0 00-1.4 0l-1.3 1.3 2.5 2.5z" fill="currentColor"/></symbol>
+</svg>
+
+<!-- EDITOR -->
+<div class="bar" role="toolbar" aria-label="Nastavení textu">
+  <div class="grp"><span class="lbl">Písmo</span>
+    <div class="seg" id="case">
+      <button data-v="none" title="Jak je vloženo">Aa</button>
+      <button data-v="uppercase" title="Velká písmena">AA</button>
+      <button data-v="lowercase" title="Malá písmena">aa</button>
+    </div>
+  </div>
+  <div class="grp"><label class="lbl" for="size">Velikost</label><input type="range" id="size" min="10" max="300" step="1"><span class="val" id="sizeV"></span></div>
+  <div class="grp"><label class="lbl" for="lh">Řádkování</label><input type="range" id="lh" min="0.7" max="2.5" step="0.05"><span class="val" id="lhV"></span></div>
+  <div class="grp"><label class="lbl" for="ls">Prostrkání</label><input type="range" id="ls" min="-0.1" max="0.3" step="0.005"><span class="val" id="lsV"></span></div>
+  <div class="grp"><label class="lbl" for="wt">Tloušťka</label>
+    <select id="wt">
+      <option value="100">100 Thin</option><option value="200">200 ExtraLight</option><option value="300">300 Light</option>
+      <option value="400">400 Regular</option><option value="500">500 Medium</option><option value="600">600 SemiBold</option>
+      <option value="700">700 Bold</option><option value="800">800 ExtraBold</option><option value="900">900 Black</option>
+    </select>
+  </div>
+  <div class="grp"><span class="lbl">Styl</span>
+    <div class="seg" id="ital"><button data-v="normal">Rovné</button><button data-v="italic"><i>Kurzíva</i></button></div>
+  </div>
+  <div class="grp"><span class="lbl">Zarovnání</span>
+    <div class="seg" id="align"><button data-v="left" title="Vlevo">Vlevo</button><button data-v="center" title="Na střed">Střed</button><button data-v="right" title="Vpravo">Vpravo</button></div>
+  </div>
+  <div class="act">
+    <button class="btn" id="clear">Vymazat</button>
+    <button class="btn" id="reset">Výchozí</button>
+  </div>
+</div>
+<main><div id="stage" contenteditable="plaintext-only" spellcheck="false" data-ph="Sem vlož text (Ctrl+V / ⌘V, na iPadu podrž prst → Vložit)…"></div></main>
+<button id="go"><svg><use href="#i-play"/></svg>Spustit čtečku</button>
+
+<!-- ČTEČKA -->
+<section id="pr" hidden aria-label="Čtečka">
+  <div id="rot">
+    <div id="mir"><div id="txt"></div><div id="mark"></div></div>
+    <div id="prog"></div>
+    <div id="ctl">
+      <div class="row">
+        <button class="btn big" id="home" title="Na začátek (Home)"><svg><use href="#i-start"/></svg>Začátek</button>
+        <button class="btn big" id="prev" title="Předchozí odstavec (↑)"><svg><use href="#i-up"/></svg>Odstavec</button>
+        <button class="btn big" id="play" title="Start / pauza (mezerník)"><svg><use href="#i-play"/></svg><span>Start</span></button>
+        <button class="btn big" id="next" title="Další odstavec (↓)"><svg><use href="#i-down"/></svg>Odstavec</button>
+        <div class="spd" title="Rychlost (← →)">
+          <button id="slow" aria-label="Pomaleji">−</button>
+          <input type="range" id="speed" min="1" max="40" step="1" aria-label="Rychlost">
+          <button id="fast" aria-label="Rychleji">+</button>
+          <span class="val" id="speedV"></span>
+        </div>
+        <button class="btn big" id="mirH" title="Zrcadlově (M)"><svg><use href="#i-mir"/></svg>Zrcadlit</button>
+      </div>
+      <div class="row">
+        <span class="lbl">Orientace</span>
+        <div class="seg" id="ori"><button data-v="auto">Podle tabletu</button><button data-v="port">Na výšku</button><button data-v="land">Na šířku</button></div>
+        <button class="btn" id="flip180">Otočit o 180°</button>
+        <button class="btn" id="mirV">Vzhůru nohama</button>
+        <span class="lbl">Písmo</span>
+        <div class="seg"><button id="fsm" aria-label="Menší písmo">A−</button><button id="fsp" aria-label="Větší písmo">A+</button></div>
+        <button class="btn" id="mark1">Čtecí linka</button>
+        <button class="btn" id="full">Celá obrazovka</button>
+        <button class="btn" id="back"><svg><use href="#i-edit"/></svg>Upravit text</button>
+      </div>
+    </div>
+  </div>
+</section>
+<div class="toast" id="toast"></div>
+
+<script>
+{
+const D={case:'none',size:72,lh:1.15,ls:-0.02,wt:'700',ital:'normal',align:'left',speed:8,mirH:false,mirV:false,ori:'auto',flip180:false,mark:true};
+const K='text-na-cernou-v1',KT='text-na-cernou-text';
+let s={...D};
+try{Object.assign(s,JSON.parse(localStorage.getItem(K)||'{}'))}catch(e){}
+const $=id=>document.getElementById(id);
+const st=$('stage'),PR=$('pr'),R=$('rot'),M=$('mir'),T=$('txt'),C=$('ctl'),MK=$('mark');
+const save=()=>{try{localStorage.setItem(K,JSON.stringify(s))}catch(e){}};
+const toast=t=>{const el=$('toast');el.textContent=t;el.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('on'),1600)};
+try{const t=localStorage.getItem(KT);if(t)st.textContent=t}catch(e){}
+
+function font(el){
+  Object.assign(el.style,{textTransform:s.case,fontSize:s.size+'px',lineHeight:s.lh,letterSpacing:s.ls+'em',fontWeight:s.wt,fontStyle:s.ital,textAlign:s.align});
+}
+function apply(){
+  font(st);font(T);
+  $('size').value=s.size;$('sizeV').textContent=s.size+' px';
+  $('lh').value=s.lh;$('lhV').textContent=(+s.lh).toFixed(2);
+  $('ls').value=s.ls;$('lsV').textContent=Math.round(s.ls*1000)/10+' %';
+  $('wt').value=s.wt;
+  $('speed').value=s.speed;$('speedV').textContent='Rychlost '+s.speed;
+  for(const g of ['case','ital','align','ori'])for(const b of $(g).querySelectorAll('button'))b.setAttribute('aria-pressed',b.dataset.v===s[g]);
+  for(const k of ['mirH','mirV','flip180'])$(k).setAttribute('aria-pressed',!!s[k]);
+  $('mark1').setAttribute('aria-pressed',!!s.mark);MK.hidden=!s.mark;
+  M.style.transform=`scale(${s.mirH?-1:1},${s.mirV?-1:1})`;
+  save();
+}
+
+/* ---------- editor ---------- */
+for(const g of ['case','ital','align'])$(g).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;s[g]=b.dataset.v;apply()});
+for(const k of ['size','lh','ls'])$(k).addEventListener('input',e=>{s[k]=+e.target.value;apply()});
+$('wt').addEventListener('change',e=>{s.wt=e.target.value;apply()});
+st.addEventListener('paste',e=>{
+  e.preventDefault();
+  const t=(e.clipboardData||window.clipboardData).getData('text/plain').replace(/\r\n?/g,'\n');
+  if(!document.execCommand('insertText',false,t)){const sel=getSelection();if(!sel.rangeCount)return;const r=sel.getRangeAt(0);r.deleteContents();r.insertNode(document.createTextNode(t));r.collapse(false)}
+});
+st.addEventListener('input',()=>{if(st.innerHTML==='<br>')st.innerHTML='';try{localStorage.setItem(KT,st.innerText)}catch(e){}});
+document.addEventListener('keydown',e=>{
+  if(!PR.hidden)return;
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='v'&&document.activeElement!==st&&!/INPUT|SELECT/.test(document.activeElement.tagName)){
+    st.focus();const r=document.createRange();r.selectNodeContents(st);r.collapse(false);const sel=getSelection();sel.removeAllRanges();sel.addRange(r);
+  }
+});
+$('clear').addEventListener('click',()=>{st.textContent='';try{localStorage.removeItem(KT)}catch(e){}st.focus()});
+$('reset').addEventListener('click',()=>{s={...D};apply();toast('Nastavení vráceno')});
+
+/* ---------- čtečka ---------- */
+let y=0,playing=false,last=0,H=0,L=0,maxY=0,paras=[],rot=0,tween=null,raf=0,hideT=0,wake=null;
+const clampY=v=>Math.max(0,Math.min(maxY,v));
+const speedPx=()=>s.speed*0.1*s.size*s.lh; // 10 = cca jeden řádek za sekundu
+
+function build(){
+  const lines=st.innerText.replace(/\r/g,'').split('\n').filter(l=>l.trim());
+  T.textContent='';
+  if(!lines.length)lines.push('Nejdřív vlož text.');
+  for(const l of lines){const p=document.createElement('p');p.textContent=l;T.appendChild(p)}
+}
+function devAngle(){
+  if(typeof window.orientation==='number')return window.orientation;
+  const a=screen.orientation?screen.orientation.angle:0;return a===270?-90:a;
+}
+function layout(keep){
+  const ratio=maxY?y/maxY:0;
+  const vw=innerWidth,vh=innerHeight,land=vw>vh;
+  rot=0;
+  if(s.ori!=='auto'&&(s.ori==='land')!==land){const a=devAngle();rot=(a===90||a===-90)?-a:-90}
+  if(s.flip180)rot+=180;
+  const side=Math.abs(rot%180)===90,w=side?vh:vw,h=side?vw:vh;
+  Object.assign(R.style,{width:w+'px',height:h+'px',left:(vw-w)/2+'px',top:(vh-h)/2+'px',transform:`rotate(${rot}deg)`});
+  H=h;L=Math.round(h*.3);
+  T.style.paddingTop=L+'px';T.style.paddingBottom=(h-L)+'px';
+  MK.style.top=(L+s.size*s.lh/2)+'px';
+  maxY=Math.max(0,T.offsetHeight-h);
+  paras=[...T.children].map(p=>p.offsetTop-L);
+  if(keep)y=ratio*maxY;
+  y=clampY(y);render();
+}
+function render(){
+  T.style.transform=`translate3d(0,${-y}px,0)`;
+  $('prog').style.width=(maxY?y/maxY*100:0)+'%';
+}
+function loop(t){
+  raf=0;
+  const dt=last?Math.min(.1,(t-last)/1000):0;last=t;
+  if(tween){
+    const k=Math.min(1,(t-tween.t0)/tween.d),e=1-Math.pow(1-k,3);
+    y=tween.a+(tween.b-tween.a)*e;if(k>=1)tween=null;
+  }else if(playing){
+    y+=speedPx()*dt;
+    if(y>=maxY){y=maxY;setPlay(false);toast('Konec textu')}
+  }
+  render();
+  if(playing||tween)raf=requestAnimationFrame(loop);else last=0;
+}
+const kick=()=>{if(!raf){last=0;raf=requestAnimationFrame(loop)}};
+function goTo(v){tween={a:y,b:clampY(v),t0:performance.now(),d:380};kick()}
+
+async function setPlay(on){
+  playing=on;
+  $('play').querySelector('use').setAttribute('href',on?'#i-pause':'#i-play');
+  $('play').querySelector('span').textContent=on?'Pauza':'Start';
+  if(on){
+    if(y>=maxY-1)y=0;
+    kick();
+    try{if('wakeLock' in navigator&&!wake){wake=await navigator.wakeLock.request('screen');wake.addEventListener('release',()=>wake=null)}}catch(e){}
+  }
+  showCtl();
+}
+function showCtl(){
+  C.classList.remove('hide');clearTimeout(hideT);
+  if(playing)hideT=setTimeout(()=>C.classList.add('hide'),2500);
+}
+const base=()=>tween?tween.b:y;
+function next(){const b=base(),t=paras.find(p=>p>b+2);goTo(t===undefined?maxY:t);showCtl()}
+function prev(){const b=base();let t=0;for(const p of paras)if(p<b-2)t=p;goTo(t);showCtl()}
+function home(){setPlay(false);goTo(0)}
+
+function openPr(){
+  build();PR.hidden=false;y=0;apply();
+  requestAnimationFrame(()=>{layout();showCtl()});
+}
+function closePr(){
+  setPlay(false);PR.hidden=true;
+  if(document.fullscreenElement||document.webkitFullscreenElement){(document.exitFullscreen||document.webkitExitFullscreen).call(document)}
+}
+$('go').addEventListener('click',openPr);
+$('back').addEventListener('click',closePr);
+$('play').addEventListener('click',()=>setPlay(!playing));
+$('home').addEventListener('click',()=>{home();showCtl()});
+$('next').addEventListener('click',next);
+$('prev').addEventListener('click',prev);
+const spd=v=>{s.speed=Math.max(1,Math.min(40,v));apply();showCtl()};
+$('slow').addEventListener('click',()=>spd(s.speed-1));
+$('fast').addEventListener('click',()=>spd(s.speed+1));
+$('speed').addEventListener('input',e=>spd(+e.target.value));
+for(const k of ['mirH','mirV'])$(k).addEventListener('click',()=>{s[k]=!s[k];apply();showCtl()});
+$('flip180').addEventListener('click',()=>{s.flip180=!s.flip180;apply();layout(true);showCtl()});
+$('mark1').addEventListener('click',()=>{s.mark=!s.mark;apply();showCtl()});
+$('ori').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;s.ori=b.dataset.v;apply();layout(true);showCtl();
+  toast(s.ori==='auto'?'Otáčí se podle tabletu':'Zamčeno '+(s.ori==='port'?'na výšku':'na šířku'))});
+const fs=d=>{s.size=Math.max(16,Math.min(300,s.size+d));apply();layout(true);showCtl()};
+$('fsm').addEventListener('click',()=>fs(-6));
+$('fsp').addEventListener('click',()=>fs(6));
+$('full').addEventListener('click',async()=>{
+  const el=document.documentElement;
+  try{
+    if(document.fullscreenElement||document.webkitFullscreenElement)await (document.exitFullscreen||document.webkitExitFullscreen).call(document);
+    else if(el.requestFullscreen)await el.requestFullscreen();
+    else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen();
+    else throw 0;
+  }catch(e){toast('Celá obrazovka tady není povolená')}
+});
+
+// dotyk: táhnutí posouvá text, ťuknutí = start/pauza
+let drag=null;
+M.addEventListener('pointerdown',e=>{
+  drag={id:e.pointerId,x:e.clientX,y:e.clientY,y0:y,moved:false,was:playing};
+  M.setPointerCapture(e.pointerId);
+});
+M.addEventListener('pointermove',e=>{
+  if(!drag||e.pointerId!==drag.id)return;
+  const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+  if(!drag.moved&&Math.hypot(dx,dy)>8){drag.moved=true;if(playing){playing=false;}tween=null}
+  if(!drag.moved)return;
+  const th=-rot*Math.PI/180;let ly=dx*Math.sin(th)+dy*Math.cos(th);
+  if(s.mirV)ly=-ly;
+  y=clampY(drag.y0-ly);render();
+});
+const up=e=>{
+  if(!drag||e.pointerId!==drag.id)return;
+  const d=drag;drag=null;
+  if(!d.moved){setPlay(!playing);return}
+  if(d.was){playing=true;kick()}
+  showCtl();
+};
+M.addEventListener('pointerup',up);M.addEventListener('pointercancel',up);
+M.addEventListener('wheel',e=>{e.preventDefault();tween=null;y=clampY(y+e.deltaY*(s.mirV?-1:1));render();showCtl()},{passive:false});
+
+document.addEventListener('keydown',e=>{
+  if(PR.hidden)return;
+  const k=e.key;
+  if(k===' '||k==='Enter'){e.preventDefault();setPlay(!playing)}
+  else if(k==='ArrowDown'||k==='PageDown'){e.preventDefault();next()}
+  else if(k==='ArrowUp'||k==='PageUp'){e.preventDefault();prev()}
+  else if(k==='ArrowRight'){spd(s.speed+1)}
+  else if(k==='ArrowLeft'){spd(s.speed-1)}
+  else if(k==='Home'){home()}
+  else if(k==='m'||k==='M'){s.mirH=!s.mirH;apply();showCtl()}
+  else if(k==='Escape'&&!document.fullscreenElement){closePr()}
+});
+const relayout=()=>{if(!PR.hidden)setTimeout(()=>layout(true),120)};
+addEventListener('resize',relayout);
+addEventListener('orientationchange',relayout);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&playing&&!wake)setPlay(true)});
+if(document.fonts)document.fonts.ready.then(relayout);
+
+apply();
+}
+</script>
+</body>
+</html>
